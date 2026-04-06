@@ -1,127 +1,94 @@
-import random
+from traffic_generator import Packet, TrafficGenerator
+from metrics import MetricsManager
+from algorithms import PriorityQueue, REDQueue, WFQQueue, WFQScheduler
 
-#  PACKET 
-class Packet:
-    def __init__(self, pid, arrival_time, size, priority, flow_type):
-        self.pid = pid
-        self.arrival_time = arrival_time
-        self.size = size
-        self.priority = priority
-        self.flow_type = flow_type
+# --- SIMULATION ENGINE ---
+def run_simulation(sim_time=100, algorithm="PQ", max_q=20):
+    flow_types = ["network_control", "realtime", "critical_data", "best_effort"]
+    
+    # Custom rates per flow type
+    rates = {
+        "network_control": 0.1,
+        "realtime": 0.4,
+        "critical_data": 0.6,
+        "best_effort": 1.2
+    }
+    
+    tg = TrafficGenerator(lambdas=rates)
+    metrics = MetricsManager(flow_types)
 
-
-#  TRAFFIC GENERATOR 
-class TrafficGenerator:
-    def __init__(self):
-        self.packet_id = 0
-
-    def generate(self, current_time):
-        packets = []
-        num_packets = random.randint(0, 5)
-
-        for _ in range(num_packets):
-            flow_type = random.choice(["realtime", "best_effort"])
-
-            if flow_type == "realtime":
-                priority = 1  
-                size = random.randint(50, 100)
-            else:
-                priority = 2   
-                size = random.randint(100, 200)
-
-            packet = Packet(
-                self.packet_id,
-                current_time,
-                size,
-                priority,
-                flow_type
-            )
-
-            packets.append(packet)
-            self.packet_id += 1
-
-        return packets
-
-
-#  PRIORITY QUEUE 
-class PriorityQueue:
-    def __init__(self, max_size):
-        self.buffer = []
-        self.max_size = max_size
-        self.dropped = 0
-
-    def enqueue(self, packet):
-       
-        if len(self.buffer) >= self.max_size:
-            self.dropped += 1
-            return False
-
-      
-        self.buffer.append(packet)
-        self.buffer.sort(key=lambda x: x.priority)
-
-        return True
-
-    def dequeue(self):
-        if self.buffer:
-            return self.buffer.pop(0)
-        return None
-
-
-# METRICS 
-class Metrics:
-    def __init__(self):
-        self.total_delay = 0
-        self.delivered = 0
-        self.generated = 0
-
-    def record_delivery(self, packet, current_time):
-        delay = current_time - packet.arrival_time
-        self.total_delay += delay
-        self.delivered += 1
-
-    def record_generated(self, count):
-        self.generated += count
-
-    def report(self):
-        avg_delay = self.total_delay / self.delivered if self.delivered else 0
-        throughput = self.delivered
-        loss_rate = (self.generated - self.delivered) / self.generated if self.generated else 0
-
-        return avg_delay, throughput, loss_rate
-
-
-#  SIMULATION 
-def run_simulation(sim_time=50):
-
-    tg = TrafficGenerator()
-    queue = PriorityQueue(max_size=10)
-    metrics = Metrics()
+    if algorithm == "PQ":
+        queue = PriorityQueue(max_q)
+        scheduler = None
+    elif algorithm == "RED":
+        queue = REDQueue(max_q)
+        scheduler = None
+    elif algorithm == "WFQ":
+        # Weights reflecting priority order
+        weights = {
+            "network_control": 10,
+            "realtime": 5,
+            "critical_data": 2,
+            "best_effort": 1
+        }
+        queue = WFQQueue(max_q, weights)
+        scheduler = WFQScheduler(flow_types)
+    else:
+        raise ValueError(f"Unknown algorithm: {algorithm}")
 
     for t in range(sim_time):
-
-       
-        packets = tg.generate(t)
-        metrics.record_generated(len(packets))
-
-       
-        for p in packets:
-            queue.enqueue(p)
-
-       
-        packet = queue.dequeue()
+        # 1. Packet Arrival
+        new_packets = tg.generate(t)
+        metrics.record_generated(new_packets)
+        
+        for p in new_packets:
+            success = queue.enqueue(p)
+            if not success:
+                metrics.record_drop(p)
+        
+        # 2. Packet Processing
+        if algorithm == "WFQ":
+            packet = scheduler.select_packet(queue)
+        else:
+            packet = queue.dequeue()
+            
         if packet:
             metrics.record_delivery(packet, t)
 
-    return metrics.report()
+    return metrics
 
+import argparse
 
-#  MAIN
+def print_report(algo_name, metrics):
+    print(f"\n{'='*10} {algo_name} Results {'='*10}")
+    data = []
+    for ft, m in metrics.flows.items():
+        data.append([ft, f"{m.avg_delay:.2f}", m.throughput, f"{m.loss_rate*100:.2f}%"])
+    
+    headers = ["Flow Type", "Avg Delay", "Throughput", "Loss Rate"]
+    try:
+        from tabulate import tabulate
+        print(tabulate(data, headers=headers, tablefmt="grid"))
+    except ImportError:
+        # Fallback manual formatting
+        print(f"{'Flow Type':<16} | {'Avg Delay':<10} | {'Throughput':<10} | {'Loss Rate':<10}")
+        print("-" * 55)
+        for row in data:
+            print(f"{row[0]:<16} | {row[1]:<10} | {row[2]:<10} | {row[3]:<10}")
+
+def compare_algorithms(sim_time=200):
+    algos = ["PQ", "WFQ", "RED"]
+    results = {}
+    for algo in algos:
+        results[algo] = run_simulation(sim_time=sim_time, algorithm=algo)
+        print_report(algo, results[algo])
+
 if __name__ == "__main__":
-
-    avg_delay, throughput, loss = run_simulation()
-
-    print("PRIORITY QUEUE SIMULATION ")
-    print("Average Delay:", avg_delay)
-    print("Throughput:", throughput)
-    print("Packet Loss Rate:", loss)
+    parser = argparse.ArgumentParser(description="QoS Packet Scheduling Simulator")
+    parser.add_argument("--time", type=int, default=200, help="Simulation time steps")
+    parser.add_argument("--max_q", type=int, default=20, help="Maximum queue size")
+    
+    args = parser.parse_args()
+    
+    print(f"Starting Simulation (Time: {args.time}, Max Queue: {args.max_q})")
+    compare_algorithms(sim_time=args.time)
