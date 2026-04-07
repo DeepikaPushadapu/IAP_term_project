@@ -1,6 +1,7 @@
 import random
 import math
 
+#---------- Packet class ----------
 class Packet:
     def __init__(self, pid, arrival_time, size, priority, flow_type):
         self.pid = pid
@@ -10,6 +11,8 @@ class Packet:
         self.flow_type = flow_type
         self.wait_time = 0
 
+
+#---------- Traffic Generator class ----------
 class TrafficGenerator:
     def __init__(self, lambdas=None):
         self.packet_id = 0

@@ -1,5 +1,6 @@
 import random
 
+#---------- Queue base class implementation ----------
 class BaseQueue:
     def __init__(self, max_size):
         self.max_size = max_size
@@ -17,6 +18,8 @@ class BaseQueue:
     def is_full(self):
         return len(self.buffer) >= self.max_size
 
+
+#---------- Priority Queue implementation ----------
 class PriorityQueue(BaseQueue):
     def enqueue(self, packet):
         if self.is_full():
@@ -27,6 +30,8 @@ class PriorityQueue(BaseQueue):
         self.buffer.sort(key=lambda x: x.priority, reverse=True)
         return True
 
+
+#---------- RED Queue implementation ----------
 class REDQueue(BaseQueue):
     def __init__(self, max_size, min_th=None, max_th=None, max_p=0.1):
         super().__init__(max_size)
@@ -55,6 +60,8 @@ class REDQueue(BaseQueue):
         self.buffer.append(packet)
         return True
 
+
+#---------- WFQ Queue implementation ----------
 class WFQQueue:
     def __init__(self, max_size, weights):
         self.max_size = max_size
@@ -69,7 +76,9 @@ class WFQQueue:
             return False
         self.queues[packet.flow_type].append(packet)
         return True
+    
 
+#---------- WFQ Scheduler implementation ----------
 class WFQScheduler:
     def __init__(self, flow_types):
         self.flow_types = flow_types

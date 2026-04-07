@@ -2,7 +2,7 @@ from traffic_generator import Packet, TrafficGenerator
 from metrics import MetricsManager
 from algorithms import PriorityQueue, REDQueue, WFQQueue, WFQScheduler
 
-# --- SIMULATION ENGINE ---
+# ---------------------- Simulation engine ----------------------
 def run_simulation(sim_time=100, algorithm="PQ", max_q=20):
     flow_types = ["network_control", "realtime", "critical_data", "best_effort"]
     
@@ -24,7 +24,7 @@ def run_simulation(sim_time=100, algorithm="PQ", max_q=20):
         queue = REDQueue(max_q)
         scheduler = None
     elif algorithm == "WFQ":
-        # Weights reflecting priority order
+        # Weights decide the priority order
         weights = {
             "network_control": 10,
             "realtime": 5,
@@ -70,7 +70,6 @@ def print_report(algo_name, metrics):
         from tabulate import tabulate
         print(tabulate(data, headers=headers, tablefmt="grid"))
     except ImportError:
-        # Fallback manual formatting
         print(f"{'Flow Type':<16} | {'Avg Delay':<10} | {'Throughput':<10} | {'Loss Rate':<10}")
         print("-" * 55)
         for row in data:

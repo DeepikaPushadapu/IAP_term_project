@@ -1,3 +1,4 @@
+#---------- Metrics class  ----------
 class FlowMetrics:
     def __init__(self):
         self.generated = 0
@@ -17,6 +18,8 @@ class FlowMetrics:
     def loss_rate(self):
         return self.dropped / self.generated if self.generated > 0 else 0
 
+
+#---------- Metrics Manager class  ----------
 class MetricsManager:
     def __init__(self, flow_types):
         self.flows = {ft: FlowMetrics() for ft in flow_types}
